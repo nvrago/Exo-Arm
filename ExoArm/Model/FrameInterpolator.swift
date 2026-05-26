@@ -1,5 +1,5 @@
 // Model/FrameInterpolator.swift
-// Slerp interpolation between sensor frames for fluid arm motion.
+// slerp interpolation between sensor frames for fluid arm motion.
 
 import simd
 import QuartzCore

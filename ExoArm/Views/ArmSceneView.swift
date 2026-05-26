@@ -3,7 +3,7 @@ import RealityKit
 import AppKit
 import simd
 
-// MARK: - SwiftUI Wrapper
+// swiftUI wrapper
 
 struct ArmSceneView: NSViewRepresentable {
     @ObservedObject var viewModel: SessionViewModel
@@ -18,30 +18,30 @@ struct ArmSceneView: NSViewRepresentable {
     func updateNSView(_ nsView: OrbitARView, context: Context) {}
 }
 
-// MARK: - Orbit AR View
+// orbit AR view
 
 final class OrbitARView: ARView {
 
-    // Camera orbit state, defaults tuned for a horizontal corner view
+    // camera orbit state, defaults tuned for a horizontal corner view
     private var yaw: Float = 0.55
     private var pitch: Float = 0.12
     private var radius: Float = 1.4
     private let lookAt: SIMD3<Float> = [0, 0.02, 0]
     private var cameraAnchor: AnchorEntity!
 
-    // Arm hierarchy
+    // arm hierarchy
     private var armRoot: Entity!
     private(set) var shoulderJoint: Entity!
     private(set) var elbowJoint: Entity!
     private(set) var wristJoint: Entity!
     private var handEntity: Entity!
 
-    // Segment proportions
+    // segment proportions
     private let upperArmLen: Float = 0.30
     private let forearmLen: Float = 0.25
     private let handLen: Float = 0.10
 
-    // Hand trail
+    // hand trail
     private var trailParent: Entity!
     private var trailDots: [Entity] = []
     private var trailMesh: MeshResource!
@@ -58,7 +58,7 @@ final class OrbitARView: ARView {
         fatalError("init(coder:) not implemented")
     }
 
-    // MARK: - Scene setup
+    //scene setup
 
     func setupScene() {
         scene.anchors.removeAll()
@@ -100,7 +100,7 @@ final class OrbitARView: ARView {
         parent.addChild(rim)
     }
 
-    // Three-plane corner enclosure, cyan-tinted with major/minor line hierarchy
+    //three-plane corner enclosure, major/minor line hierarchy
     private func buildGrid(parent: Entity) {
         let gridY: Float = -0.38
         let extent: Float = 0.50
@@ -131,7 +131,7 @@ final class OrbitARView: ARView {
 
     private enum PlaneAxis { case x, y, z }
 
-    // Every 4th line is major (thicker and brighter). i=0 and i=divisions
+    // every 4th line is major (thicker and brighter). i=0 and i=divisions
     // hit major naturally, giving the plane a defined border.
     private func makeGridPlane(extent: Float, axis: PlaneAxis,
                                minorColor: NSColor, majorColor: NSColor) -> Entity {
@@ -179,7 +179,7 @@ final class OrbitARView: ARView {
         return entity
     }
 
-    // Programmatic arm: capsules for segments, spheres at joints, box hand
+    //capsules for segments, spheres at joints, box hand
     private func buildArm(parent: Entity) {
         let segmentMat = SimpleMaterial(
             color: NSColor(red: 0.78, green: 0.78, blue: 0.82, alpha: 1.0),
@@ -196,7 +196,7 @@ final class OrbitARView: ARView {
         armRoot.position = [0, 0.35, 0]
         parent.addChild(armRoot)
 
-        // Shoulder pivot, gets upper arm IMU rotation
+        // shoulder pivot, gets upper arm IMU rotation
         shoulderJoint = Entity()
         shoulderJoint.name = "shoulderJoint"
         armRoot.addChild(shoulderJoint)
@@ -206,14 +206,14 @@ final class OrbitARView: ARView {
             materials: [jointMat])
         shoulderJoint.addChild(shoulderSphere)
 
-        // Upper arm segment hangs from shoulder
+        // upper arm segment hangs from shoulder
         let upperArm = ModelEntity(
             mesh: .generateCylinder(height: upperArmLen, radius: 0.038),
             materials: [segmentMat])
         upperArm.position = [0, -upperArmLen / 2, 0]
         shoulderJoint.addChild(upperArm)
 
-        // Elbow pivot at distal end of upper arm
+        // elbow pivot at distal end of upper arm
         elbowJoint = Entity()
         elbowJoint.name = "elbowJoint"
         elbowJoint.position = [0, -upperArmLen, 0]
@@ -230,7 +230,7 @@ final class OrbitARView: ARView {
         forearm.position = [0, -forearmLen / 2, 0]
         elbowJoint.addChild(forearm)
 
-        // Wrist pivot at distal end of forearm
+        // wrist pivot at distal end of forearm
         wristJoint = Entity()
         wristJoint.name = "wristJoint"
         wristJoint.position = [0, -forearmLen, 0]
@@ -241,7 +241,7 @@ final class OrbitARView: ARView {
             materials: [jointMat])
         wristJoint.addChild(wristSphere)
 
-        // Solid block hand
+        // solid block hand
         handEntity = ModelEntity(
             mesh: .generateBox(size: [0.075, handLen, 0.030], cornerRadius: 0.012),
             materials: [handMat])
@@ -259,10 +259,9 @@ final class OrbitARView: ARView {
             color: NSColor(red: 0.2, green: 0.85, blue: 1.0, alpha: 0.9))
     }
 
-    // MARK: - Pose update
+    //pose update
 
-    // Drive nested joints with parent-relative quaternions so each segment
-    // rotates around its anatomical pivot without cascading the parent's rotation.
+    // drive nested joints with parent relative quaternions so each segment rotates around its anatomical pivot without cascading the parent's rotation.
     func updatePose(_ frame: ProcessedFrame, interpolator: FrameInterpolator) {
         interpolator.pushTarget(frame)
         guard let pose = interpolator.interpolated() else { return }
@@ -299,7 +298,7 @@ final class OrbitARView: ARView {
         trailDots.removeAll()
     }
 
-    // MARK: - Camera
+    //camera
 
     private func updateCamera() {
         let x = lookAt.x + radius * cos(pitch) * sin(yaw)
@@ -309,7 +308,7 @@ final class OrbitARView: ARView {
         cameraAnchor.look(at: lookAt, from: cameraAnchor.position, relativeTo: nil)
     }
 
-    // MARK: - Mouse input
+    //mouse input
 
     override func mouseDragged(with event: NSEvent) {
         yaw += Float(event.deltaX) * 0.006
@@ -325,7 +324,7 @@ final class OrbitARView: ARView {
     }
 }
 
-// MARK: - 2D Gizmo Overlay
+//2D orientation overlay (x,y,z)
 
 struct GizmoOverlay: View {
     var body: some View {

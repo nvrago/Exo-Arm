@@ -6,8 +6,8 @@
 // 1. Signing & Capabilities > + Capability > iCloud
 // 2. Check "iCloud Documents"
 // 3. Add container: iCloud.com.yourname.PitcherRehab
-// 4. Entitlements file gets com.apple.developer.icloud-container-identifiers
-//    and com.apple.developer.ubiquity-container-identifiers automatically
+
+// TLDR: This is where all the data storage kind of happens, and how xcode stores the output data
 
 import Foundation
 import Combine
@@ -22,6 +22,12 @@ final class SessionRecorder: ObservableObject {
     private var filePath: URL?
     private var pitchNum: Int = 0
     private var runNumber: Int = 1
+    
+    // session constants captured at startRecording time
+    private var sessionRecovery: Double = 0
+    private var sessionHRV: Double = 0
+    private var sessionRHR: Double = 0
+    private var sessionDayStrainAtStart: Double = 0
 
     private let dateFmt: DateFormatter = {
         let f = DateFormatter()
@@ -39,7 +45,6 @@ final class SessionRecorder: ObservableObject {
         iCloudAvailable = FileManager.default.ubiquityIdentityToken != nil
     }
 
-    // Root directory: iCloud container or local Documents
     private var rootDir: URL {
         if useICloud, let cloudURL = FileManager.default.url(forUbiquityContainerIdentifier: nil) {
             return cloudURL.appendingPathComponent("Documents/PitcherRehab", isDirectory: true)
@@ -56,7 +61,6 @@ final class SessionRecorder: ObservableObject {
         rootDir.appendingPathComponent("baselines", isDirectory: true)
     }
 
-    // Directory for today's date (e.g. sessions/2026-04-15/)
     private func todayDir() -> URL {
         let dateStr = dateFmt.string(from: Date())
         let dir = sessionsDir.appendingPathComponent(dateStr, isDirectory: true)
@@ -64,14 +68,13 @@ final class SessionRecorder: ObservableObject {
         return dir
     }
 
-    // Count existing runs today to auto-increment run number
     private func nextRunNumber(in dir: URL) -> Int {
         let files = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
         let runs = files.filter { $0.hasSuffix(".csv") }
         return runs.count + 1
     }
 
-    func startRecording(sessionName: String = "session") {
+    func startRecording(sessionName: String = "session", whoopContext: WhoopFrameContext? = nil) {
         let dir = todayDir()
         runNumber = nextRunNumber(in: dir)
         let timeStr = timeFmt.string(from: Date())
@@ -82,6 +85,19 @@ final class SessionRecorder: ObservableObject {
         fileHandle = try? FileHandle(forWritingTo: path)
         filePath = path
 
+        // capture Whoop session constants for the duration of this recording
+        if let ctx = whoopContext {
+            sessionRecovery = ctx.recoveryScore
+            sessionHRV = ctx.hrvRmssd
+            sessionRHR = ctx.restingHeartRate
+            sessionDayStrainAtStart = ctx.dayStrainAtStart
+        } else {
+            sessionRecovery = 0
+            sessionHRV = 0
+            sessionRHR = 0
+            sessionDayStrainAtStart = 0
+        }
+
         let header = "timestamp,pitch_num,"
             + "ref_w,ref_x,ref_y,ref_z,"
             + "ua_w,ua_x,ua_y,ua_z,"
@@ -91,7 +107,8 @@ final class SessionRecorder: ObservableObject {
             + "elb_w,elb_x,elb_y,elb_z,"
             + "wrt_w,wrt_x,wrt_y,wrt_z,"
             + "shoulder_deg,elbow_deg,wrist_deg,"
-            + "heart_rate\n"
+            + "hr_bpm,session_load,hr_zone,"
+            + "recovery_pct,hrv_rmssd,rhr_bpm,day_strain\n"
         fileHandle?.write(header.data(using: .utf8)!)
 
         frameCount = 0
@@ -116,7 +133,7 @@ final class SessionRecorder: ObservableObject {
         pitchNum = num
     }
 
-    func record(_ frame: ProcessedFrame) {
+    func record(_ frame: ProcessedFrame, whoop: WhoopFrameContext = .empty) {
         guard isRecording, let fh = fileHandle else { return }
         let r = frame.raw.reference
         let ua = frame.raw.upperArm
@@ -126,7 +143,17 @@ final class SessionRecorder: ObservableObject {
         let er = frame.elbowRot
         let wr = frame.wristRot
         let ts = String(format: "%.3f", frame.timestamp.timeIntervalSince1970)
-        let hr = frame.heartRate.map { String($0) } ?? ""
+        
+        // live Whoop values, empty string if no HR sample available
+        let hrStr = whoop.heartRate.map { String($0) } ?? ""
+        let loadStr = String(format: "%.3f", whoop.sessionLoad)
+        let zoneStr = String(whoop.hrZone)
+
+        // session constants captured at start, repeated each row
+        let recStr = String(format: "%.1f", sessionRecovery)
+        let hrvStr = String(format: "%.1f", sessionHRV)
+        let rhrStr = String(format: "%.1f", sessionRHR)
+        let strainStr = String(format: "%.2f", sessionDayStrainAtStart)
 
         let row = "\(ts),\(pitchNum),"
             + "\(r.w),\(r.x),\(r.y),\(r.z),"
@@ -137,13 +164,14 @@ final class SessionRecorder: ObservableObject {
             + "\(er.w),\(er.x),\(er.y),\(er.z),"
             + "\(wr.w),\(wr.x),\(wr.y),\(wr.z),"
             + String(format: "%.2f,%.2f,%.2f", frame.shoulderAngle, frame.elbowAngle, frame.wristAngle)
-            + ",\(hr)\n"
+            + ",\(hrStr),\(loadStr),\(zoneStr),"
+            + "\(recStr),\(hrvStr),\(rhrStr),\(strainStr)\n"
 
         fh.write(row.data(using: .utf8)!)
         frameCount += 1
     }
 
-    // Baseline management
+    //baseline management
 
     func saveBaseline(name: String, frames: [ProcessedFrame]) {
         try? FileManager.default.createDirectory(at: baselinesDir, withIntermediateDirectories: true)
@@ -180,7 +208,6 @@ final class SessionRecorder: ObservableObject {
         return files.filter { $0.hasSuffix(".json") }.map { $0.replacingOccurrences(of: ".json", with: "") }
     }
 
-    // Browse past sessions grouped by date
     func listSessionDates() -> [String] {
         try? FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
         let dirs = (try? FileManager.default.contentsOfDirectory(atPath: sessionsDir.path)) ?? []
@@ -197,7 +224,6 @@ final class SessionRecorder: ObservableObject {
         sessionsDir.appendingPathComponent(date).appendingPathComponent(filename)
     }
 
-    // Check current storage location
     var storageLocation: String {
         if useICloud && iCloudAvailable { return "iCloud Drive" }
         return "Local"

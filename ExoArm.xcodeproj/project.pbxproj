@@ -27,11 +27,25 @@
 		97A1D4862F903B7B003A03BA /* ExoArm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExoArm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		97A1D4932F903B7C003A03BA /* ExoArmTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExoArmTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		97A1D49D2F903B7C003A03BA /* ExoArmUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExoArmUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		97B5B5BB2FBE5321005BA64C /* ExoArm.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ExoArm.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		97B5B5A52FBE2A1D005BA64C /* Exceptions for "ExoArm" folder in "ExoArm" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 97A1D4852F903B7B003A03BA /* ExoArm */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		97A1D4882F903B7B003A03BA /* ExoArm */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				97B5B5A52FBE2A1D005BA64C /* Exceptions for "ExoArm" folder in "ExoArm" target */,
+			);
 			path = ExoArm;
 			sourceTree = "<group>";
 		};
@@ -75,6 +89,7 @@
 		97A1D47D2F903B7B003A03BA = {
 			isa = PBXGroup;
 			children = (
+				97B5B5BB2FBE5321005BA64C /* ExoArm.entitlements */,
 				97A1D4882F903B7B003A03BA /* ExoArm */,
 				97A1D4962F903B7C003A03BA /* ExoArmTests */,
 				97A1D4A02F903B7C003A03BA /* ExoArmUITests */,
@@ -390,6 +405,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=*]" = ExoArm.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -408,14 +424,15 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ExoArm/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -446,13 +463,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=*]" = ExoArm.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
 				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
@@ -464,14 +482,15 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ExoArm/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "ExoArm uses Bluetooth to connect to the exoskeleton hardware.";
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

@@ -1,5 +1,5 @@
 // Model/KinematicsEngine.swift
-// Joint angle computation with T-pose calibration support.
+// joint angle computation with auto-zero on session start.
 
 import simd
 import Foundation
@@ -8,20 +8,20 @@ final class KinematicsEngine {
     static let shared = KinematicsEngine()
     private init() {}
 
-    // Calibration offsets recorded during T-pose
+    // zero-pose offsets captured automatically on the first frame after startSession()
     private var calibRef: simd_quatf?
     private var calibUA: simd_quatf?
     private var calibFA: simd_quatf?
     private var calibHD: simd_quatf?
+    private var pendingZeroCapture = false
     private(set) var isCalibrated = false
 
-    func calibrate(with raw: RawSensorData) {
-        calibRef = raw.reference.simdQuat
-        calibUA = raw.upperArm.simdQuat
-        calibFA = raw.forearm.simdQuat
-        calibHD = raw.hand.simdQuat
-        isCalibrated = true
-        print("[CALIB] Captured zero pose")
+    // signal that the next incoming frame should become the new zero pose.
+    // called from SessionViewModel when streaming starts.
+    func startSession() {
+        pendingZeroCapture = true
+        isCalibrated = false
+        print("[CALIB] Will auto-zero on next frame")
     }
 
     func clearCalibration() {
@@ -29,17 +29,34 @@ final class KinematicsEngine {
         calibUA = nil
         calibFA = nil
         calibHD = nil
+        pendingZeroCapture = false
         isCalibrated = false
-        print("[CALIB] Cleared")
+    }
+
+    private func captureZero(from raw: RawSensorData) {
+        calibRef = raw.reference.simdQuat
+        calibUA = raw.upperArm.simdQuat
+        calibFA = raw.forearm.simdQuat
+        calibHD = raw.hand.simdQuat
+        pendingZeroCapture = false
+        isCalibrated = true
+        print("[CALIB] Auto-zeroed pose from first frame")
     }
 
     func process(_ raw: RawSensorData, heartRate: Int? = nil) -> ProcessedFrame {
+        // Auto-capture zero pose on the first frame after startSession()
+        if pendingZeroCapture {
+            captureZero(from: raw)
+        }
+
+        // abs. sensor orientations, normalized against zero pose.
+        // each sensor's quaternion is expressed as a delta from where it was when we captured the zero.
+        // This removes whatever absolute world-frame orientation the sensors had at startup.
         var refQ = raw.reference.simdQuat
         var uaQ = raw.upperArm.simdQuat
         var faQ = raw.forearm.simdQuat
         var hdQ = raw.hand.simdQuat
 
-        // Apply calibration offset if available
         if let cr = calibRef, let cu = calibUA, let cf = calibFA, let ch = calibHD {
             refQ = cr.conjugate * refQ
             uaQ = cu.conjugate * uaQ
@@ -47,11 +64,17 @@ final class KinematicsEngine {
             hdQ = ch.conjugate * hdQ
         }
 
+        // expresses each arm segment in the shoulder-reference frame.
+        // the reference IMU sits on the back/shoulder, so its conjugate maps world-frame orientations into a body-relative frame. walking around, IT does not affect these values, only arm motion does.
         let uaRel = relativeRotation(from: refQ, to: uaQ)
         let faRel = relativeRotation(from: refQ, to: faQ)
         let hdRel = relativeRotation(from: refQ, to: hdQ)
 
-        let shoulderRot = relativeRotation(from: refQ, to: uaRel)
+        // joint rotations are parent-relative:
+        // shoulder = how the upper arm rotates relative to the body (uaRel itself).
+        // elbow = how the forearm rotates relative to the upper arm.
+        // wrist = how the hand rotates relative to the forearm.
+        let shoulderRot = uaRel
         let elbowRot = relativeRotation(from: uaRel, to: faRel)
         let wristRot = relativeRotation(from: faRel, to: hdRel)
 

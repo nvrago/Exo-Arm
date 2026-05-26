@@ -1,11 +1,12 @@
-// Views/DashboardView.swift
-// Main app layout: left panel, center 3D + graph, right panel.
+// views/dashboardView.swift
+// main app layout: left panel, center 3D + graph, right panel.
 
 import SwiftUI
 import Charts
 
 struct DashboardView: View {
     @EnvironmentObject var session: SessionViewModel
+    @StateObject private var whoop = WhoopViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,11 +21,16 @@ struct DashboardView: View {
         }
         .background(Color(white: 0.07))
         .preferredColorScheme(.dark)
+        .environmentObject(whoop)
+        .onAppear {
+            session.attachWhoop(whoop)
+        }
     }
 }
 
 struct ToolbarView: View {
     @EnvironmentObject var session: SessionViewModel
+    @EnvironmentObject var whoop: WhoopViewModel
 
     var body: some View {
         HStack {
@@ -33,7 +39,7 @@ struct ToolbarView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.cyan)
                 StatusPill(label: "ESP32", connected: session.espConnected)
-                StatusPill(label: "HR", connected: session.whoopConnected)
+                StatusPill(label: "HR", connected: whoop.isHRConnected)
             }
 
             Spacer()
@@ -44,10 +50,16 @@ struct ToolbarView: View {
                     .disabled(!session.espConnected)
 
                 if session.isStreaming {
-                    ToolButton("Stop", color: .red) { session.sendCommand(.stop) }
+                    ToolButton("Stop", color: .red) {
+                        session.sendCommand(.stop)
+                        whoop.stopSession()
+                    }
                 } else {
-                    ToolButton("Start", color: .green) { session.sendCommand(.start) }
-                        .disabled(!session.espConnected)
+                    ToolButton("Start", color: .green) {
+                        session.sendCommand(.start)
+                        whoop.startSession()
+                    }
+                    .disabled(!session.espConnected)
                 }
 
                 ToolButton("Mark", color: .orange) { session.sendCommand(.mark) }
@@ -62,13 +74,6 @@ struct ToolbarView: View {
 
                 ToolButton("Status", color: .gray) { session.sendCommand(.status) }
                     .disabled(!session.espConnected)
-
-                ToolButton("Calibrate", color: .yellow) { session.calibrate() }
-                    .disabled(!session.isStreaming)
-
-                if session.isCalibrated {
-                    ToolButton("Clear Cal", color: .gray) { session.clearCalibration() }
-                }
 
                 Divider().frame(height: 16)
 
@@ -142,6 +147,10 @@ struct ToolButton: View {
 
 struct LeftPanel: View {
     @EnvironmentObject var session: SessionViewModel
+    @EnvironmentObject var whoop: WhoopViewModel
+
+    @State private var hrHistory: [Int] = []
+    private let hrHistoryMax = 240
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -184,39 +193,14 @@ struct LeftPanel: View {
                     StatRow("Pitches", "\(session.pitchCount)", .cyan)
                     StatRow("Recording", session.isRecording ? "Active" : "Off",
                         session.isRecording ? .red : Color(white: 0.5))
-                    StatRow("Calibrated", session.isCalibrated ? "Yes" : "No",
-                        session.isCalibrated ? .yellow : Color(white: 0.5))
                 }
 
-                SectionHeader("Biometrics")
-                if session.whoopConnected {
-                    VStack(spacing: 10) {
-                        HStack(spacing: 10) {
-                            BioGauge(label: "Heart rate", value: Float(session.heartRate ?? 0),
-                                unit: "bpm", color: .red, minVal: 40, maxVal: 200)
-                            BioGauge(label: "Strain", value: nil,
-                                unit: "", color: .yellow, minVal: 0, maxVal: 21)
-                        }
-                        HStack(spacing: 10) {
-                            BioGauge(label: "Recovery", value: nil,
-                                unit: "%", color: .green, minVal: 0, maxVal: 100)
-                            BioGauge(label: "HRV", value: nil,
-                                unit: "ms", color: .purple, minVal: 0, maxVal: 200)
-                        }
-                    }
-                    HeartMonitor(hrHistory: session.hrHistory)
+                WhoopPanel(vm: whoop)
+
+                if whoop.isHRConnected {
+                    HeartMonitor(hrHistory: hrHistory)
                         .frame(height: 70)
                 } else {
-                    VStack(spacing: 10) {
-                        HStack(spacing: 10) {
-                            BioGaugeOffline(label: "Heart rate")
-                            BioGaugeOffline(label: "Strain")
-                        }
-                        HStack(spacing: 10) {
-                            BioGaugeOffline(label: "Recovery")
-                            BioGaugeOffline(label: "HRV")
-                        }
-                    }
                     HeartMonitorOffline()
                         .frame(height: 70)
                 }
@@ -225,6 +209,13 @@ struct LeftPanel: View {
         }
         .background(Color(white: 0.085))
         .overlay(Divider(), alignment: .trailing)
+        .onReceive(whoop.$currentHR) { hr in
+            guard hr > 0 else { return }
+            hrHistory.append(hr)
+            if hrHistory.count > hrHistoryMax {
+                hrHistory.removeFirst(hrHistory.count - hrHistoryMax)
+            }
+        }
     }
 }
 
@@ -609,76 +600,6 @@ struct CompactStat: View {
         .padding(.vertical, 8)
         .background(Color.white.opacity(0.04))
         .cornerRadius(6)
-    }
-}
-
-struct BioGauge: View {
-    let label: String
-    let value: Float?
-    let unit: String
-    let color: Color
-    let minVal: Float
-    let maxVal: Float
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: 0.75)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 3.5)
-                    .rotationEffect(.degrees(135))
-                Circle()
-                    .trim(from: 0, to: value != nil ? CGFloat((value! - minVal) / (maxVal - minVal)) * 0.75 : 0)
-                    .stroke(color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                    .rotationEffect(.degrees(135))
-                VStack(spacing: 0) {
-                    Text(value != nil ? "\(Int(value!))" : "--")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(color)
-                    if !unit.isEmpty {
-                        Text(unit)
-                            .font(.system(size: 7))
-                            .foregroundColor(Color(white: 0.4))
-                    }
-                }
-            }
-            .frame(width: 44, height: 44)
-            Text(label.uppercased())
-                .font(.system(size: 7, weight: .semibold))
-                .foregroundColor(Color(white: 0.45))
-                .tracking(0.3)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.03))
-        .cornerRadius(8)
-    }
-}
-
-struct BioGaugeOffline: View {
-    let label: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: 0.75)
-                    .stroke(Color.white.opacity(0.04), lineWidth: 3.5)
-                    .rotationEffect(.degrees(135))
-                Text("--")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(white: 0.25))
-            }
-            .frame(width: 44, height: 44)
-            Text(label.uppercased())
-                .font(.system(size: 7, weight: .semibold))
-                .foregroundColor(Color(white: 0.25))
-                .tracking(0.3)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.02))
-        .cornerRadius(8)
     }
 }
 

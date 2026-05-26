@@ -47,9 +47,7 @@ struct RawSensorData {
             }
         }
 
-        // Firmware packs quats in order [ref, slot1, slot2, hand]. Slot 1 is the
-        // physical forearm sensor and slot 2 is the physical upper arm sensor,
-        // so we swap on decode to keep the rest of the app naming-correct.
+        // The firmware packs quats in order [ref, slot1, slot2, hand]. Slot 1 is the physical forearm sensor and slot 2 is the physical upper arm sensor, so we swap on decode to keep the rest of the app naming-correct.
         let ref = Quat(w: floats[0], x: floats[1], y: floats[2], z: floats[3])
         let fa = Quat(w: floats[4], x: floats[5], y: floats[6], z: floats[7])
         let ua = Quat(w: floats[8], x: floats[9], y: floats[10], z: floats[11])

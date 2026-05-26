@@ -1,5 +1,5 @@
 // Model/FrameRingBuffer.swift
-// Lock-free ring buffer for passing frames from BLE queue to UI.
+// Lock free ring buffer for passing frames from BLE queue to UI.
 
 import Foundation
 
@@ -17,7 +17,7 @@ final class FrameRingBuffer {
         self.buffer = [ProcessedFrame?](repeating: nil, count: capacity)
     }
 
-    // Called from BLE background queue
+    // called from BLE background queue
     func write(_ frame: ProcessedFrame) {
         lock.lock()
         buffer[writeIndex % capacity] = frame
@@ -30,7 +30,7 @@ final class FrameRingBuffer {
         lock.unlock()
     }
 
-    // Called from main thread. Returns latest frame, skips intermediate.
+    // called from main thread, returns latest frame, skips intermediate
     func readLatest() -> ProcessedFrame? {
         lock.lock()
         defer { lock.unlock() }

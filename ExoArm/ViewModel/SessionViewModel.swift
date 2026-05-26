@@ -1,12 +1,6 @@
-//
-//  SessionViewModel.swift
-//  ExoArm
-//
-//  Created by Nathan Rago on 5/13/26.
-//
 
 // ViewModel/SessionViewModel.swift
-// Three-tier pipeline: BLE queue -> ring buffer -> 144Hz display timer.
+// three-tier pipeline: BLE queue, ring buffer, 144Hz display timer
 
 import Foundation
 import Combine
@@ -31,10 +25,12 @@ final class SessionViewModel: ObservableObject {
     @Published var iCloudAvailable = false
     @Published var storageLocation = "Local"
     @Published var dataRate: Int = 0
-    @Published var isCalibrated = false
 
     // 3D renderer reference, assigned by ArmSceneView in makeNSView
     weak var armRenderer: OrbitARView?
+
+    // Whoop ViewModel reference for bio data during recording.
+    weak var whoop: WhoopViewModel?
 
     let bleManager: BLEManager
     let recorder = SessionRecorder()
@@ -82,6 +78,10 @@ final class SessionViewModel: ObservableObject {
         fpsTimer?.invalidate()
     }
 
+    func attachWhoop(_ whoop: WhoopViewModel) {
+        self.whoop = whoop
+    }
+
     private func pullFrameToUI() {
         guard let frame = frameBuffer.readLatest() else { return }
 
@@ -89,7 +89,6 @@ final class SessionViewModel: ObservableObject {
         latestFrame = frame
         fpsCounter += 1
 
-        // Drive the 3D renderer with the new frame
         armRenderer?.updatePose(frame, interpolator: interpolator)
 
         appendHistory(
@@ -117,8 +116,14 @@ final class SessionViewModel: ObservableObject {
         bleManager.sendCommand(cmd)
         addLog("Sent: \(cmd.rawValue)")
         switch cmd {
-        case .start: isStreaming = true
-        case .stop: isStreaming = false
+        case .start:
+            isStreaming = true
+            // Tell the kinematics engine to auto-zero on the next incoming frame.
+            kinematics.startSession()
+            armRenderer?.clearTrail()
+            addLog("Auto-zeroing pose on next frame")
+        case .stop:
+            isStreaming = false
         default: break
         }
     }
@@ -129,7 +134,16 @@ final class SessionViewModel: ObservableObject {
     }
 
     func startRecording() {
-        recorder.startRecording()
+        let ctx = WhoopFrameContext(
+            heartRate: nil,
+            sessionLoad: 0,
+            hrZone: 0,
+            recoveryScore: whoop?.sessionContext.recoveryScore ?? 0,
+            hrvRmssd: whoop?.sessionContext.hrvRmssd ?? 0,
+            restingHeartRate: whoop?.sessionContext.restingHeartRate ?? 0,
+            dayStrainAtStart: whoop?.sessionContext.dayStrainSoFar ?? 0
+        )
+        recorder.startRecording(whoopContext: ctx)
         isRecording = true
         addLog("Recording started (\(recorder.storageLocation))")
     }
@@ -138,22 +152,6 @@ final class SessionViewModel: ObservableObject {
         recorder.stopRecording()
         isRecording = false
         addLog("Recording stopped (\(recorder.frameCount) frames)")
-    }
-
-    func calibrate() {
-        guard let frame = latestFrame else {
-            addLog("Cannot calibrate: no data")
-            return
-        }
-        kinematics.calibrate(with: frame.raw)
-        isCalibrated = true
-        addLog("Calibrated zero pose")
-    }
-
-    func clearCalibration() {
-        kinematics.clearCalibration()
-        isCalibrated = false
-        addLog("Calibration cleared")
     }
 
     func toggleICloud(_ enabled: Bool) {
@@ -184,6 +182,19 @@ final class SessionViewModel: ObservableObject {
         if elbowHistory.count > maxHistory { elbowHistory.removeFirst() }
         if wristHistory.count > maxHistory { wristHistory.removeFirst() }
     }
+
+    private func currentWhoopFrameContext() -> WhoopFrameContext {
+        guard let whoop = whoop else { return .empty }
+        return WhoopFrameContext(
+            heartRate: whoop.isHRConnected ? whoop.currentHR : nil,
+            sessionLoad: whoop.sessionLoad,
+            hrZone: whoop.currentZone,
+            recoveryScore: whoop.sessionContext.recoveryScore,
+            hrvRmssd: whoop.sessionContext.hrvRmssd,
+            restingHeartRate: whoop.sessionContext.restingHeartRate,
+            dayStrainAtStart: whoop.sessionContext.dayStrainSoFar
+        )
+    }
 }
 
 extension SessionViewModel: BLEManagerDelegate {
@@ -191,10 +202,13 @@ extension SessionViewModel: BLEManagerDelegate {
         let frame = kinematics.process(raw, heartRate: currentHR)
         dataCounter += 1
         frameBuffer.write(frame)
-        if recorder.isRecording { recorder.record(frame) }
+        if recorder.isRecording {
+            recorder.record(frame, whoop: currentWhoopFrameContext())
+        }
     }
 
     func didReceiveHeartRate(_ bpm: Int) {
+        // OLD PATH, HR now comes via WhoopHRPeripheral.
         currentHR = bpm
     }
 
@@ -204,8 +218,8 @@ extension SessionViewModel: BLEManagerDelegate {
     }
 
     func didUpdateWhoopConnection(_ connected: Bool) {
+        // OLD PATH, Whoop state owned by WhoopViewModel.
         whoopConnected = connected
-        addLog(connected ? "HR monitor connected" : "HR monitor disconnected")
     }
 
     func didReceiveESPResponse(_ message: String) {
